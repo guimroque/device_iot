@@ -4,7 +4,9 @@
 #include "secrets.h"
 #include "rom/gpio.h"
 #include "MillisTimer.h"
-
+#include <Wire.h> // must be included here so that Arduino library object file references work
+#include <RtcDS3231.h>
+RtcDS3231<TwoWire> Rtc(Wire);
 #define AWS_IOT_PUBLISH_TOPIC   "esp32/pub"
 #define AWS_IOT_SUBSCRIBE_TOPIC "esp32/sub"
 
@@ -49,6 +51,10 @@ extern struct wifiCredentials getwifiSSID(fs::FS &fs, String file);
 //=======>PUBSUBCLIENT
 void messageHandler(char* topic, byte* payload, unsigned int length);
 
+//=======>PUBSUBCLIENT
+extern void rtcInit();
+extern void printDateTime(const RtcDateTime& dt);
+
 //==================================================================================ExternFunctions====================================================================
 
 //==================================================================================Imports===========================================================================
@@ -75,6 +81,7 @@ void setup() {
   pinMode(PIN_LED, OUTPUT);
   pinMode(PIN_AP, INPUT);
   Serial.begin(9600);
+  rtcInit();
   existFile = getFileDir(SPIFFS, "/", 0, CONFIG_FILE);
   
 //============================== LOGICA PARA CONEXÃO DE SERVIÇO WEB [FINALIZADO] =============================================================
