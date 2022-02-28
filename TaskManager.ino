@@ -1,13 +1,21 @@
+
+
 TaskHandle_t task_high;
 
 
 String messageMQTT[2] = {"metodo", "value"};
-String atuador[5] = {"nome", "pino", "repeats", "time", "diretorio"};
+String atuador[5] = {"nome", "pino", "repeats", "timeDelay", "diretorio"};
+
+struct task{
+  int pino;
+  int timeDelay;
+};
 
 
 void vHigh(void *pvParameters);
+void makeTaskJsonObject( String dispositivo);
 
-
+// TODO ao adicionar um arquivo, enviar uma flag que diz se o dispositivo passa a valer no periodo de 24 horas ja ativo, ou se espera o proximo
 void messageHandler(char* topic, byte* payload, unsigned int length) {
         Serial.print("[TMG] => Mensagem recebida no topico ");
         Serial.println(topic);
@@ -62,18 +70,106 @@ void messageHandler(char* topic, byte* payload, unsigned int length) {
         }
 }
 
+void makeTasks(fs::FS &fs){
+  String sensores[MAX_DISP];
+  String atuadores[MAX_DISP];
 
-void makeTasks(){
-  Serial.println("[PBS] => Na função makeTasks");
-  xTaskCreatePinnedToCore(vHigh,"vHigh",10000,NULL,1,&task_high,0);
+  Serial.println("[TMG] => Iniciando agendamento de tasks");
+
+    File root = fs.open("/");
+    if(!root){
+        Serial.println("[TMG] => Diretorio nao encontrado");
+    }
+    if(!root.isDirectory()){
+        Serial.println("[TMG] => Diretorio nao encontrado");
+    }
+
+    File file = root.openNextFile();
+    int contA = 0;
+    int contS = 0;
+    while(file){
+        if(file.isDirectory()){
+        } else {
+            if(String(file.name()).indexOf(String(DISP_ACAO)) !=-1 ){
+          Serial.print("RESULTADO LOGICO");
+          Serial.println(String(file.name()).indexOf(String(DISP_ACAO)));
+                atuadores[contA] = file.name();
+                contA++;
+                Serial.print("ATUADOR: ");
+                Serial.println(file.name());
+                makeTaskJsonObject(String(file.name()), contA+contS);
+            }else if(String(file.name()).indexOf(String(DISP_LEITURA)) != -1 ){
+          Serial.print("RESULTADO LOGICO");
+          Serial.println(String(file.name()).indexOf(String(DISP_ACAO)));
+                atuadores[contS] = file.name();
+                contS++;
+                Serial.print("SENSOR: ");
+                Serial.println(file.name());
+            }
+        }
+        file = root.openNextFile();
+    }
+}
+
+
+void makeTaskJsonObject( String dispositivo, int posicao){
+  Serial.print("[TMG] => Dispositivo buscado");
+  String value = readFile(SPIFFS, dispositivo.c_str());
+  Serial.println(value);
+  DynamicJsonDocument doc(1024);     
+  deserializeJson(doc, String(value));
+
+  //answer.as<int>()
+  
+  Serial.println("JSON MONTADO");
+  String nome = doc[atuador[0]];
+  int pino = doc[atuador[1]].as<int>();
+  int timeDelay = doc[atuador[3]].as<int>();
+  int repeats = doc[atuador[2]].as<int>();
+  struct task myTask;
+  myTask.pino = pino;
+  myTask.timeDelay = timeDelay;
+  Serial.println("[TMG] => Informacoes do dispositivo:");
+  Serial.println(nome);
+  Serial.println(pino);
+  Serial.println(repeats);
+  Serial.println(timeDelay);
+  pinMode(pino, OUTPUT);
+  //todas as tarefas devem ser executadas no nucleo livre, o nucleo 0
+  xTaskCreatePinnedToCore(taskExec,nome.c_str(),10000,(void*)&myTask, 1,NULL,0);
+  xTaskCreatePinnedToCore(vHigh,"SERIAL",10000,NULL, 1,NULL,0);
+  return;
+}
+//void makeTasks(){
+//  Serial.println("[PBS] => Na função makeTasks");
+//  xTaskCreatePinnedToCore(vHigh,"vHigh",10000,NULL,1,&task_high,0);
+//}
+
+void taskExec(void * parameter){
+  struct task myTask = *((struct task*)parameter);
+  //int pino = *((int*)parameter);
+  //int timeDelay*((int*)parameter)
+  int pino = myTask.pino;
+  int timeDelay = myTask.timeDelay;
+  TickType_t xDelay = timeDelay / portTICK_PERIOD_MS;
+  Serial.print("[TMG] => Executando instrução do pino: ");
+  Serial.println(myTask.pino);
+  Serial.println(myTask.timeDelay);
+  for(;;){
+    Serial.println("[LED] => Debug LED!");
+    digitalWrite(myTask.pino, !digitalRead(myTask.pino));
+    vTaskDelay(xDelay);  
+  }
+  
 }
 
 
 void vHigh(void *pvParameters){
-  digitalWrite(2,HIGH);
-  delay(1000);
-  digitalWrite(2,LOW);
-  vTaskDelete(NULL);
+  TickType_t xDelay = 3000 / portTICK_PERIOD_MS;
+  for(;;){
+    Serial.println("[DEBUG] => PRINT");
+    vTaskDelay(xDelay);  
+  }
 }
 
 

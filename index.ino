@@ -3,6 +3,7 @@
 #include "ArduinoJson.h"
 #include "secrets.h"
 #include "rom/gpio.h"
+#include "MillisTimer.h"
 
 #define AWS_IOT_PUBLISH_TOPIC   "esp32/pub"
 #define AWS_IOT_SUBSCRIBE_TOPIC "esp32/sub"
@@ -12,11 +13,15 @@
 const char CONFIG_FILE[] = "/wifiConection.txt";
 const char CONFIG_WIFIPASS[] = "WIFIPASS";
 const char CONFIG_WIFISSID[] = "WIFISSID";
+const char DISP_ACAO[] = "/atuadores/";
+const char DISP_LEITURA[] = "/sensores/";
+const int MAX_DISP = 15;
 
 struct wifiCredentials{
   String WIFISSID;
   String WIFIPASS;
 };
+
 
 bool FLAG_PENDING_RESPONSE = false;
 String PENDING_MESSAGE_RESPONSE;
@@ -32,6 +37,10 @@ extern void listDir(fs::FS &fs, const char * dirname, uint8_t levels);
 extern bool deleteFile(fs::FS &fs, const char * path);
 extern String SaveCustomWifi(fs::FS &fs, String ssid, String psk, String CONFIG_FILE);
 extern bool getFileDir(fs::FS &fs, const char * dirname, uint8_t levels, String findFile);
+extern String readFileProperties(fs::FS & fs, const char * path, String propriedades);
+
+//=======>TASKMANAGER
+extern void makeTasks(fs::FS &fs);
 
 //=======>WIFIMANAGER
 extern void setupManager();
@@ -70,7 +79,7 @@ void setup() {
   
 //============================== LOGICA PARA CONEXÃO DE SERVIÇO WEB [FINALIZADO] =============================================================
  if(existFile == 1){
-  struct wifiCredentials myWifiCredentials= getwifiSSID(SPIFFS, CONFIG_FILE);
+  struct wifiCredentials myWifiCredentials = getwifiSSID(SPIFFS, CONFIG_FILE);
   WiFiServer server(80);
   WiFi.begin(myWifiCredentials.WIFISSID.c_str(), myWifiCredentials.WIFIPASS.c_str());
 
@@ -81,6 +90,8 @@ void setup() {
       Serial.print(".");
       timeConection++;
   }
+  makeTasks(SPIFFS);
+  delay(3000);
   if(WiFi.status() != WL_CONNECTED){
     Serial.println("[INDEX] => Falha ao tentar conectar ao WiFi"); 
   }else{
@@ -103,7 +114,8 @@ void setup() {
     // Create a message handler
     client.setCallback(messageHandler);
 //=========CONECTANDO A AWS IOT CORE================
-
+    
+    
 //=========PRENDENDO SETUP EM UM LOOP QUE VERIFICA MENSAGENS DA AWS================================================================    
     if (!client.connected()) {
       Serial.println("[INDEX] => Tempo de conexao com AWSIot acabou, nao conectado");
