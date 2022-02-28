@@ -156,6 +156,7 @@ void taskExec(void * parameter){
   Serial.println(myTask.pino);
   Serial.println(myTask.timeDelay);
   for(;;){
+    Serial.println("[LED] => Debug LED!");
     digitalWrite(myTask.pino, !digitalRead(myTask.pino));
     vTaskDelay(xDelay);  
   }
